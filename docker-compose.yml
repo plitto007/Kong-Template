@@ -1,0 +1,84 @@
+volumes:
+  kong_data: { }
+  kong_svc_data: { }
+#  kong_prefix_vol:
+#    driver_opts:
+#      type: tmpfs
+#      device: tmpfs
+#  kong_tmp_vol:
+#    driver_opts:
+#      type: tmpfs
+#      device: tmpfs
+
+networks:
+  kong-net:
+    external: false
+
+services:
+  kong-db:
+    image: postgres:11.7
+    env_file:
+      - env/staging.env
+    restart: on-failure
+    stdin_open: true
+    tty: true
+    ports:
+      - "5433:5432"
+    networks:
+      - kong-net
+    volumes:
+      - kong_data:/var/lib/postgresql/data
+
+  kong-migrations:
+    image: "kong:3.8.0"
+    command: kong migrations bootstrap
+    depends_on:
+      - kong-db
+    env_file:
+      - env/staging.env
+    networks:
+      - kong-net
+    restart: on-failure
+
+  #  kong-migrations-up:
+  #    image: "kong:3.8.0"
+  #    command: kong migrations up && kong migrations finish
+  #    depends_on:
+  #      - db
+  #    env_file:
+  #      - env/staging.env
+  #    networks:
+  #      - kong-net
+  #    restart: on-failure
+
+  kong:
+    image: "kong:3.8.0"
+    env_file:
+      - env/staging.env
+    environment:
+      KONG_ADMIN_ACCESS_LOG: /dev/stdout
+      KONG_ADMIN_ERROR_LOG: /dev/stderr
+      KONG_PROXY_LISTEN: "0.0.0.0:8000"
+      KONG_ADMIN_LISTEN: "0.0.0.0:8001"
+      KONG_ADMIN_GUI_LISTEN: "0.0.0.0:8002"
+      KONG_PROXY_ACCESS_LOG: /dev/stdout
+      KONG_PROXY_ERROR_LOG: /dev/stderr
+    networks:
+      - kong-net
+    ports:
+      - "80:8000/tcp"
+      - "443:8443/tcp"
+      - "8001:8001/tcp"
+      - "8444:8444/tcp"
+      - "8002:8002/tcp"
+    restart: on-failure
+
+
+  konga:
+    image: pantsel/konga:0.14.9
+    ports:
+      - "1337:1337"
+    env_file:
+      - env/staging.env
+    networks:
+      - kong-net
